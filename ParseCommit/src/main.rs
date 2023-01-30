@@ -3,8 +3,8 @@ use shellexpand::tilde;
 use std::fmt::{self, Display, Formatter};
 use std::fs::File;
 use std::fs::{self};
+use std::io::Read;
 use std::io::{self, Error, ErrorKind};
-use std::io::{Read, Write};
 use std::str::{self, FromStr};
 const HASH_BYTES: usize = 20;
 
@@ -221,9 +221,7 @@ fn main() -> io::Result<()> {
     let head = get_head()?;
     let head_hash = head.get_hash()?;
     let commit = read_commit(head_hash)?;
-    print!("Commit {}:", head_hash);
-    io::stdout().flush().unwrap();
-    print!("{:x?}", commit);
-    io::stdout().flush().unwrap();
+    println!("Commit {}:", head_hash);
+    println!("{:x?}", commit);
     Ok(())
 }
