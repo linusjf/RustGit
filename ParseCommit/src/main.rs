@@ -223,5 +223,7 @@ fn main() -> io::Result<()> {
     let commit = read_commit(head_hash)?;
     println!("Commit {}:", head_hash);
     println!("{:x?}", commit);
+    let tree_contents = read_object(commit._tree)?;
+    fs::write("tree", tree_contents).ok();
     Ok(())
 }
