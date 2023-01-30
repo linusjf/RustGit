@@ -3,8 +3,8 @@ use shellexpand::tilde;
 use std::fmt::{self, Display, Formatter};
 use std::fs::File;
 use std::fs::{self};
-use std::io::Read;
 use std::io::{self, Error, ErrorKind};
+use std::io::{Read, Write};
 use std::str::{self, FromStr};
 const HASH_BYTES: usize = 20;
 
@@ -124,6 +124,7 @@ fn main() -> io::Result<()> {
     // Spoiler alert: the commit object is a text file, so print it as a string
     let head_contents = String::from_utf8(head_contents).unwrap();
     println!("Object {} contents:", head_hash);
-    println!("{:?}", head_contents);
+    print!("{}", head_contents);
+    io::stdout().flush().unwrap();
     Ok(())
 }
