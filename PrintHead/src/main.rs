@@ -2,8 +2,10 @@ use shellexpand::tilde;
 use std::fs;
 use std::io;
 
+const HEAD_FILE: &str = "~/RustGit/.git/HEAD";
+
 fn get_head() -> io::Result<String> {
-    fs::read_to_string(tilde("~/RustGit/.git/HEAD").to_string())
+    fs::read_to_string(tilde(HEAD_FILE).to_string())
 }
 
 fn main() -> io::Result<()> {
