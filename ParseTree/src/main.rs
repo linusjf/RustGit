@@ -308,9 +308,9 @@ fn display_tree(tree: Tree, parent: &str) -> io::Result<()> {
 
 fn display_file(entry: &TreeEntry, parent: &str) -> io::Result<()> {
     if parent.is_empty() {
-        println!("{:x?}", &entry.name);
+        println!("{}", &entry.name);
     } else {
-        println!("{:x?}", &(parent.to_owned() + "/" + &entry.name));
+        println!("{}", &(parent.to_owned() + "/" + &entry.name));
     }
     Ok(())
 }
