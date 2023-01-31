@@ -290,21 +290,28 @@ fn read_object(hash: Hash) -> io::Result<Vec<u8>> {
     Ok(contents)
 }
 
-fn display_tree(tree: Tree) -> io::Result<()> {
+fn display_tree(tree: Tree, parent: &str) -> io::Result<()> {
     for t in tree.0.iter() {
         match t.mode {
             Mode::Directory => {
-                println!("{:x?}", t.name);
-                display_tree(read_tree(t.hash)?).ok()
+                if parent.is_empty() {
+                    display_tree(read_tree(t.hash)?, &t.name).ok()
+                } else {
+                    display_tree(read_tree(t.hash)?, &(parent.to_owned() + "/" + &t.name)).ok()
+                }
             }
-            Mode::File => display_file(t).ok(),
+            Mode::File => display_file(t, parent).ok(),
         };
     }
     Ok(())
 }
 
-fn display_file(entry: &TreeEntry) -> io::Result<()> {
-    println!("{:x?}", entry);
+fn display_file(entry: &TreeEntry, parent: &str) -> io::Result<()> {
+    if parent.is_empty() {
+        println!("{:x?}", &entry.name);
+    } else {
+        println!("{:x?}", &(parent.to_owned() + "/" + &entry.name));
+    }
     Ok(())
 }
 
@@ -315,7 +322,7 @@ fn main() -> io::Result<()> {
     println!("Commit {}:", head_hash);
     println!("{:x?}", commit);
     let tree = read_tree(commit._tree)?;
-    display_tree(tree).ok();
+    display_tree(tree, "").ok();
     let blob = get_file_blob(commit._tree, "ParseCommit/src/main.rs")?;
     print!("{}", String::from_utf8(blob.0).unwrap()); // assume a text file
     Ok(())
