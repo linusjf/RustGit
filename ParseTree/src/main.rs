@@ -36,7 +36,7 @@ const TREE_HEADER: &[u8] = b"tree ";
 enum Mode {
     Directory,
     File,
-    // We'll ignore other modes for now
+    SymbolicLink,
 }
 
 #[derive(Debug)]
@@ -84,6 +84,8 @@ fn parse_tree(object: &[u8]) -> Option<Tree> {
         let mode = match mode {
             b"40000" => Mode::Directory,
             b"100644" => Mode::File,
+            b"100755" => Mode::File,
+            b"120000" => Mode::SymbolicLink,
             _ => return None,
         };
 
@@ -301,6 +303,7 @@ fn display_tree(tree: Tree, parent: &str) -> io::Result<()> {
                 }
             }
             Mode::File => display_file(t, parent).ok(),
+            Mode::SymbolicLink => display_file(t, parent).ok(),
         };
     }
     Ok(())
@@ -321,8 +324,8 @@ fn main() -> io::Result<()> {
     let commit = read_commit(head_hash)?;
     println!("Commit {}:", head_hash);
     println!("{:x?}", commit);
-    let tree = read_tree(commit._tree)?;
-    display_tree(tree, "").ok();
+    let _tree = read_tree(commit._tree)?;
+    display_tree(_tree, "").ok();
     let blob = get_file_blob(commit._tree, "ParseCommit/src/main.rs")?;
     print!("{}", String::from_utf8(blob.0).unwrap()); // assume a text file
     Ok(())
