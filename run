@@ -12,4 +12,9 @@ if test $# -ne 1 || test ! -d "$1"; then
 fi
 dir="$1"
 shift
-cargo run --manifest-path "${dir}/Cargo.toml" -- "$@"
+if test -e "${dir}/Cargo.toml"; then
+  cargo run --manifest-path "${dir}/Cargo.toml" -- "$@"
+else
+  echo "The directory ${dir} must have a Cargo.toml file."
+  exit 1
+fi
