@@ -38,8 +38,8 @@ fn read_from_info(branch: &str) -> io::Result<String> {
 
 fn main() -> io::Result<()> {
     let main_head = get_branch_head("main")?;
-    println!("main: {:?}", main_head);
+    println!("main: {}", main_head);
     let dev_head = get_branch_head("development")?;
-    println!("development: {:?}", dev_head);
+    println!("development: {}", dev_head);
     Ok(())
 }
