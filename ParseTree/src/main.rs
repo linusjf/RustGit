@@ -6,12 +6,14 @@ use std::fs::{self};
 use std::io::Read;
 use std::io::{self, Error, ErrorKind};
 use std::path::Path;
+use std::process::Command;
 use std::str::{self, FromStr};
 const HASH_BYTES: usize = 20;
 
 const HEAD_FILE: &str = "~/RustGit/.git/HEAD";
 const BRANCH_REFS_DIRECTORY: &str = "~/RustGit/.git/refs/heads/";
 const REF_PREFIX: &str = "ref: refs/heads/";
+const INFO_FILE: &str = "~/RustGit/.git/info/refs";
 // A (commit) hash is a 20-byte identifier.
 // We will see that git also gives hashes to other things.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -20,6 +22,7 @@ struct Hash([u8; HASH_BYTES]);
 const OBJECTS_DIRECTORY: &str = "~/RustGit/.git/objects";
 
 // The head is either at a specific commit or a named branch
+#[derive(Debug)]
 enum Head {
     Commit(Hash),
     Branch(String),
@@ -272,11 +275,38 @@ impl Head {
             Commit(hash) => Ok(*hash),
             Branch(branch) => {
                 // Copied from get_branch_head()
-                let ref_file = tilde(BRANCH_REFS_DIRECTORY).to_string() + branch;
-                let hash_contents = fs::read_to_string(ref_file)?;
+                let hash_contents = get_branch_head(branch)?;
                 Hash::from_str(hash_contents.trim_end())
             }
         }
+    }
+}
+
+fn get_branch_head(branch: &str) -> io::Result<String> {
+    let fname = tilde(BRANCH_REFS_DIRECTORY).to_string() + branch;
+    let path = Path::new(&fname);
+    if path.try_exists()? {
+        fs::read_to_string(fname)
+    } else {
+        read_from_info(branch)
+    }
+}
+
+fn read_from_info(branch: &str) -> io::Result<String> {
+    let fname = tilde(INFO_FILE).to_string();
+    let path = Path::new(&fname);
+    if path.try_exists()? {
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg("grep 'refs/heads/".to_owned() + branch + "' " + &fname + " | awk '{print $1}'")
+            .output()
+            .expect("failed to execute process: ");
+        match String::from_utf8(output.stdout) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(io::Error::new(ErrorKind::Other, e)),
+        }
+    } else {
+        Err(Error::new(ErrorKind::Other, fname + " does not exist!"))
     }
 }
 
@@ -290,8 +320,12 @@ fn read_object(hash: Hash) -> io::Result<Vec<u8>> {
     let mut contents = vec![];
     let path = Path::new(&object_file);
     if path.exists() {
-        let object_file = File::open(object_file)?;
+        let object_file = File::open(object_file.clone())
+            .expect(&("Error opening file: ".to_owned() + &object_file));
         ZlibDecoder::new(object_file).read_to_end(&mut contents)?;
+    } else {
+        println!("File {} does not exist.", object_file);
+        println!("Returning empty object array {:x?}", contents);
     }
     Ok(contents)
 }
@@ -352,9 +386,10 @@ fn display_file(entry: &TreeEntry, parent: &str) -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     let head = get_head()?;
+    println!("{:x?}:", head);
     let head_hash = head.get_hash()?;
+    println!("Head hash: {}", head_hash);
     let commit = read_commit(head_hash)?;
-    println!("Commit {}:", head_hash);
     println!("{:x?}", commit);
     let _tree = read_tree(commit._tree)?;
     display_tree(&(_tree), "").ok();
