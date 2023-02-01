@@ -5,6 +5,7 @@ use std::fs::File;
 use std::fs::{self};
 use std::io::Read;
 use std::io::{self, Error, ErrorKind};
+use std::path::Path;
 use std::str::{self, FromStr};
 const HASH_BYTES: usize = 20;
 
@@ -75,28 +76,29 @@ fn get_file_blob(tree: Hash, path: &str) -> io::Result<Blob> {
 }
 
 // Some helper functions for parsing objects
-
 fn parse_tree(object: &[u8]) -> Option<Tree> {
-    let mut object = check_header(object, TREE_HEADER)?;
     let mut entries = vec![];
-    while !object.is_empty() {
-        let (mode, object_rest) = split_once(object, b' ')?;
-        let mode = match mode {
-            b"40000" => Mode::Directory,
-            b"100644" => Mode::File,
-            b"100755" => Mode::File,
-            b"120000" => Mode::SymbolicLink,
-            _ => return None,
-        };
+    if !object.is_empty() {
+        let mut object = check_header(object, TREE_HEADER)?;
+        while !object.is_empty() {
+            let (mode, object_rest) = split_once(object, b' ')?;
+            let mode = match mode {
+                b"40000" => Mode::Directory,
+                b"100644" => Mode::File,
+                b"100755" => Mode::File,
+                b"120000" => Mode::SymbolicLink,
+                _ => return None,
+            };
 
-        let (name, object_rest) = split_once(object_rest, b'\0')?;
-        let name = String::from_utf8(name.to_vec()).ok()?;
+            let (name, object_rest) = split_once(object_rest, b'\0')?;
+            let name = String::from_utf8(name.to_vec()).ok()?;
 
-        let hash = object_rest.get(..HASH_BYTES)?;
-        let hash = Hash(*<&[u8; HASH_BYTES]>::try_from(hash).unwrap());
-        object = &object_rest[HASH_BYTES..];
+            let hash = object_rest.get(..HASH_BYTES)?;
+            let hash = Hash(*<&[u8; HASH_BYTES]>::try_from(hash).unwrap());
+            object = &object_rest[HASH_BYTES..];
 
-        entries.push(TreeEntry { mode, name, hash });
+            entries.push(TreeEntry { mode, name, hash });
+        }
     }
     Some(Tree(entries))
 }
@@ -286,9 +288,12 @@ fn read_object(hash: Hash) -> io::Result<Vec<u8>> {
     let hex_hash = hash.to_string();
     let (directory_name, file_name) = hex_hash.split_at(2);
     let object_file = tilde(OBJECTS_DIRECTORY).to_string() + "/" + directory_name + "/" + file_name;
-    let object_file = File::open(object_file)?;
     let mut contents = vec![];
-    ZlibDecoder::new(object_file).read_to_end(&mut contents)?;
+    let path = Path::new(&object_file);
+    if path.exists() {
+        let object_file = File::open(object_file)?;
+        ZlibDecoder::new(object_file).read_to_end(&mut contents)?;
+    }
     Ok(contents)
 }
 
@@ -296,10 +301,11 @@ fn display_tree(tree: Tree, parent: &str) -> io::Result<()> {
     for t in tree.0.iter() {
         match t.mode {
             Mode::Directory => {
+                let _tree = read_tree(t.hash)?;
                 if parent.is_empty() {
-                    display_tree(read_tree(t.hash)?, &t.name).ok()
+                    display_tree(_tree, &t.name).ok()
                 } else {
-                    display_tree(read_tree(t.hash)?, &(parent.to_owned() + "/" + &t.name)).ok()
+                    display_tree(_tree, &(parent.to_owned() + "/" + &t.name)).ok()
                 }
             }
             Mode::File => display_file(t, parent).ok(),
@@ -326,7 +332,7 @@ fn main() -> io::Result<()> {
     println!("{:x?}", commit);
     let _tree = read_tree(commit._tree)?;
     display_tree(_tree, "").ok();
-    let blob = get_file_blob(commit._tree, "ParseCommit/src/main.rs")?;
+    let blob = get_file_blob(commit._tree, "PrintHeadCommit/src/main.rs")?;
     print!("{}", String::from_utf8(blob.0).unwrap()); // assume a text file
     Ok(())
 }
