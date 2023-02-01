@@ -40,9 +40,8 @@ enum Mode {
     SymbolicLink,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TreeEntry {
-    #[allow(dead_code)]
     mode: Mode,
     name: String,
     hash: Hash,
@@ -77,7 +76,7 @@ fn get_file_blob(tree: Hash, path: &str) -> io::Result<Blob> {
 
 // Some helper functions for parsing objects
 fn parse_tree(object: &[u8]) -> Option<Tree> {
-    let mut entries = vec![];
+    let mut entries: Tree = Tree(Vec::new());
     if !object.is_empty() {
         let mut object = check_header(object, TREE_HEADER)?;
         while !object.is_empty() {
@@ -96,11 +95,11 @@ fn parse_tree(object: &[u8]) -> Option<Tree> {
             let hash = object_rest.get(..HASH_BYTES)?;
             let hash = Hash(*<&[u8; HASH_BYTES]>::try_from(hash).unwrap());
             object = &object_rest[HASH_BYTES..];
-
-            entries.push(TreeEntry { mode, name, hash });
+            let entry: TreeEntry = TreeEntry { mode, name, hash };
+            entries.0.push(entry);
         }
     }
-    Some(Tree(entries))
+    Some(entries)
 }
 
 fn read_tree(hash: Hash) -> io::Result<Tree> {
@@ -297,15 +296,42 @@ fn read_object(hash: Hash) -> io::Result<Vec<u8>> {
     Ok(contents)
 }
 
-fn display_tree(tree: Tree, parent: &str) -> io::Result<()> {
+fn get_files(tree: Tree, parent: &str, entries: &mut Tree) -> io::Result<()> {
     for t in tree.0.iter() {
         match t.mode {
             Mode::Directory => {
                 let _tree = read_tree(t.hash)?;
                 if parent.is_empty() {
-                    display_tree(_tree, &t.name).ok()
+                    get_files(_tree, &t.name, entries).ok()
                 } else {
-                    display_tree(_tree, &(parent.to_owned() + "/" + &t.name)).ok()
+                    get_files(_tree, &(parent.to_owned() + "/" + &t.name), entries).ok()
+                }
+            }
+            Mode::File => add_file_entry(&(t.clone()), parent, entries).ok(),
+            Mode::SymbolicLink => add_file_entry(&(t.clone()), parent, entries).ok(),
+        };
+    }
+    Ok(())
+}
+
+fn add_file_entry(entry: &TreeEntry, parent: &str, entries: &mut Tree) -> io::Result<()> {
+    let mut new_entry = entry.clone();
+    if !parent.is_empty() {
+        new_entry.name = parent.to_owned() + "/" + &entry.name;
+    }
+    entries.0.push(new_entry);
+    Ok(())
+}
+
+fn display_tree(tree: &Tree, parent: &str) -> io::Result<()> {
+    for t in tree.0.iter() {
+        match t.mode {
+            Mode::Directory => {
+                let _tree = read_tree(t.hash)?;
+                if parent.is_empty() {
+                    display_tree(&(_tree), &t.name).ok()
+                } else {
+                    display_tree(&(_tree), &(parent.to_owned() + "/" + &t.name)).ok()
                 }
             }
             Mode::File => display_file(t, parent).ok(),
@@ -331,7 +357,10 @@ fn main() -> io::Result<()> {
     println!("Commit {}:", head_hash);
     println!("{:x?}", commit);
     let _tree = read_tree(commit._tree)?;
-    display_tree(_tree, "").ok();
+    display_tree(&(_tree), "").ok();
+    let files: &mut Tree = &mut Tree(Vec::new());
+    get_files(_tree, "", files)?;
+    println!("{:x?}", files);
     let blob = get_file_blob(commit._tree, "PrintHeadCommit/src/main.rs")?;
     print!("{}", String::from_utf8(blob.0).unwrap()); // assume a text file
     Ok(())
