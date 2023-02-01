@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+require() {
+  hash "$@" || exit
+}
+require cargo
+usage() {
+  echo "$0 <dir> [param1] [param2]..."
+  exit 1
+}
+if test $# -ne 1 || test ! -d "$1"; then
+  usage
+fi
+dir="$1"
+shift
+cargo run --manifest-path "${dir}/Cargo.toml" -- "$@"
